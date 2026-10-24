@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HC-05 Controller (LED on Pin 11)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    .panel {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 420px;
+      padding: 24px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+    }
+    h2 {
+      font-size: 1.25rem;
+      color: #38bdf8;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 18px;
+    }
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      margin-bottom: 16px;
+      padding: 8px 12px;
+      background: #090d16;
+      border-radius: 6px;
+    }
+    .indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ef4444;
+    }
+    .indicator.connected {
+      background: #22c55e;
+      box-shadow: 0 0 8px #22c55e;
+    }
+    button {
+      padding: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    button:not(:disabled):hover {
+      filter: brightness(1.1);
+    }
+    button:not(:disabled):active {
+      transform: scale(0.98);
+    }
+    .btn-connect {
+      width: 100%;
+      background: #2563eb;
+      color: #ffffff;
+      margin-bottom: 12px;
+    }
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .btn-on { background: #16a34a; color: #fff; }
+    .btn-off { background: #dc2626; color: #fff; }
+    .btn-disconnect {
+      width: 100%;
+      background: #475569;
+      color: #fff;
+      margin-bottom: 18px;
+    }
+    .terminal-title {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .terminal {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      height: 130px;
+      overflow-y: auto;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #4ade80;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="panel">
+    <h2>HC-05 Web Controller</h2>
+    <p class="subtitle">Controlling LED on Pin 11 (BT TX on D9, RX on D10)</p>
+
+    <div class="status-bar">
+      <div id="dot" class="indicator"></div>
+      <span id="statusTxt">Disconnected</span>
+    </div>
+
+    <button id="btnConnect" class="btn-connect">Connect Bluetooth COM Port</button>
+
+    <div class="btn-grid">
+      <button id="btnOn" class="btn-on" disabled>LED ON ('1')</button>
+      <button id="btnOff" class="btn-off" disabled>LED OFF ('0')</button>
+    </div>
+
+    <button id="btnDisconnect" class="btn-disconnect" disabled>Disconnect</button>
+
+    <div class="terminal-title">
+      <span>Serial Log (Incoming from Uno)</span>
+      <span id="clearLogs" style="cursor: pointer; text-decoration: underline;">Clear</span>
+    </div>
+    <div id="terminal" class="terminal">[Console ready]&#10;</div>
+  </div>
+
+  <script>
+    let port;
+    let writer;
+    let reader;
+    let keepReading = true;
+
+    const btnConnect = document.getElementById('btnConnect');
+    const btnDisconnect = document.getElementById('btnDisconnect');
+    const btnOn = document.getElementById('btnOn');
+    const btnOff = document.getElementById('btnOff');
+    const statusTxt = document.getElementById('statusTxt');
+    const dot = document.getElementById('dot');
+    const terminal = document.getElementById('terminal');
+    const clearLogs = document.getElementById('clearLogs');
+
+    function log(msg) {
+      terminal.textContent += msg;
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    clearLogs.addEventListener('click', () => {
+      terminal.textContent = '';
+    });
+
+    if (!('serial' in navigator)) {
+      statusTxt.textContent = 'Web Serial not supported (use Chrome/Edge)';
+      btnConnect.disabled = true;
+    }
+
+    btnConnect.addEventListener('click', async () => {
+      try {
+        // Request user to pick the Bluetooth Outgoing COM port
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+
+        writer = port.writable.getWriter();
+
+        dot.classList.add('connected');
+        statusTxt.textContent = 'Connected (9600 baud)';
+        btnConnect.disabled = true;
+        btnDisconnect.disabled = false;
+        btnOn.disabled = false;
+        btnOff.disabled = false;
+
+        keepReading = true;
+        readLoop();
+      } catch (err) {
+        log(`\n[Connect Error] ${err.message}\n`);
+      }
+    });
+
+    async function sendCommand(char) {
+      if (writer) {
+        try {
+          const encoder = new TextEncoder();
+          await writer.write(encoder.encode(char));
+          log(`Sent: ${char}\n`);
+        } catch (err) {
+          log(`\n[Send Error] ${err.message}\n`);
+        }
+      }
+    }
+
+    btnOn.addEventListener('click', () => sendCommand('1'));
+    btnOff.addEventListener('click', () => sendCommand('0'));
+
+    async function readLoop() {
+      const textDecoder = new TextDecoderStream();
+      port.readable.pipeTo(textDecoder.writable);
+      reader = textDecoder.readable.getReader();
+
+      try {
+        while (keepReading) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) {
+            log(value);
+          }
+        }
+      } catch (err) {
+        if (keepReading) log(`\n[Read Error] ${err.message}\n`);
+      } finally {
+        reader.releaseLock();
+      }
+    }
+
+    btnDisconnect.addEventListener('click', async () => {
+      try {
+        keepReading = false;
+        if (reader) await reader.cancel();
+        if (writer) await writer.releaseLock();
+        if (port) await port.close();
+
+        dot.classList.remove('connected');
+        statusTxt.textContent = 'Disconnected';
+        btnConnect.disabled = false;
+        btnDisconnect.disabled = true;
+        btnOn.disabled = true;
+        btnOff.disabled = true;
+        log('\n[Port closed]\n');
+      } catch (err) {
+        log(`\n[Disconnect Error] ${err.message}\n`);
+      }
+    });
+  </script>
+</body>
+</html>
