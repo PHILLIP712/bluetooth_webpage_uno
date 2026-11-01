@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HC-05 Controller (LED on Pin 11)</title>
+  <title>HC-05 Wireless Switch</title>
   <style>
     * {
       box-sizing: border-box;
@@ -25,9 +25,10 @@
       border: 1px solid #334155;
       border-radius: 12px;
       width: 100%;
-      max-width: 420px;
+      max-width: 360px;
       padding: 24px;
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+      text-align: center;
     }
     h2 {
       font-size: 1.25rem;
@@ -37,15 +38,16 @@
     .subtitle {
       font-size: 0.85rem;
       color: #94a3b8;
-      margin-bottom: 18px;
+      margin-bottom: 20px;
     }
     .status-bar {
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: 8px;
       font-size: 0.85rem;
-      margin-bottom: 16px;
-      padding: 8px 12px;
+      margin-bottom: 20px;
+      padding: 10px;
       background: #090d16;
       border-radius: 6px;
     }
@@ -54,6 +56,7 @@
       height: 10px;
       border-radius: 50%;
       background: #ef4444;
+      transition: background 0.3s;
     }
     .indicator.connected {
       background: #22c55e;
@@ -69,7 +72,7 @@
       transition: all 0.2s ease;
     }
     button:disabled {
-      opacity: 0.4;
+      opacity: 0.35;
       cursor: not-allowed;
       transform: none !important;
     }
@@ -83,13 +86,13 @@
       width: 100%;
       background: #2563eb;
       color: #ffffff;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
     .btn-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 12px;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
     .btn-on { background: #16a34a; color: #fff; }
     .btn-off { background: #dc2626; color: #fff; }
@@ -97,62 +100,33 @@
       width: 100%;
       background: #475569;
       color: #fff;
-      margin-bottom: 18px;
-    }
-    .terminal-title {
-      font-size: 0.8rem;
-      color: #94a3b8;
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 6px;
-    }
-    .terminal {
-      background: #090d16;
-      border: 1px solid #1e293b;
-      border-radius: 6px;
-      height: 130px;
-      overflow-y: auto;
-      padding: 10px;
-      font-family: monospace;
-      font-size: 0.8rem;
-      color: #4ade80;
-      white-space: pre-wrap;
-      word-break: break-all;
     }
   </style>
 </head>
 <body>
 
   <div class="panel">
-    <h2>HC-05 Web Controller</h2>
-    <p class="subtitle">Controlling LED on Pin 11 (BT TX on D9, RX on D10)</p>
+    <h2>HC-05 Controller</h2>
+    <p class="subtitle">Wireless Switch for Pin 11</p>
 
     <div class="status-bar">
       <div id="dot" class="indicator"></div>
       <span id="statusTxt">Disconnected</span>
     </div>
 
-    <button id="btnConnect" class="btn-connect">Connect Bluetooth COM Port</button>
+    <button id="btnConnect" class="btn-connect">Connect Bluetooth</button>
 
     <div class="btn-grid">
-      <button id="btnOn" class="btn-on" disabled>LED ON ('1')</button>
-      <button id="btnOff" class="btn-off" disabled>LED OFF ('0')</button>
+      <button id="btnOn" class="btn-on" disabled>LED ON</button>
+      <button id="btnOff" class="btn-off" disabled>LED OFF</button>
     </div>
 
     <button id="btnDisconnect" class="btn-disconnect" disabled>Disconnect</button>
-
-    <div class="terminal-title">
-      <span>Serial Log (Incoming from Uno)</span>
-      <span id="clearLogs" style="cursor: pointer; text-decoration: underline;">Clear</span>
-    </div>
-    <div id="terminal" class="terminal">[Console ready]&#10;</div>
   </div>
 
   <script>
     let port;
     let writer;
-    let reader;
-    let keepReading = true;
 
     const btnConnect = document.getElementById('btnConnect');
     const btnDisconnect = document.getElementById('btnDisconnect');
@@ -160,42 +134,27 @@
     const btnOff = document.getElementById('btnOff');
     const statusTxt = document.getElementById('statusTxt');
     const dot = document.getElementById('dot');
-    const terminal = document.getElementById('terminal');
-    const clearLogs = document.getElementById('clearLogs');
-
-    function log(msg) {
-      terminal.textContent += msg;
-      terminal.scrollTop = terminal.scrollHeight;
-    }
-
-    clearLogs.addEventListener('click', () => {
-      terminal.textContent = '';
-    });
 
     if (!('serial' in navigator)) {
-      statusTxt.textContent = 'Web Serial not supported (use Chrome/Edge)';
+      statusTxt.textContent = 'Web Serial unsupported (Use Chrome/Edge)';
       btnConnect.disabled = true;
     }
 
     btnConnect.addEventListener('click', async () => {
       try {
-        // Request user to pick the Bluetooth Outgoing COM port
         port = await navigator.serial.requestPort();
         await port.open({ baudRate: 9600 });
 
         writer = port.writable.getWriter();
 
         dot.classList.add('connected');
-        statusTxt.textContent = 'Connected (9600 baud)';
+        statusTxt.textContent = 'Connected';
         btnConnect.disabled = true;
         btnDisconnect.disabled = false;
         btnOn.disabled = false;
         btnOff.disabled = false;
-
-        keepReading = true;
-        readLoop();
       } catch (err) {
-        log(`\n[Connect Error] ${err.message}\n`);
+        statusTxt.textContent = 'Connection Failed';
       }
     });
 
@@ -204,9 +163,8 @@
         try {
           const encoder = new TextEncoder();
           await writer.write(encoder.encode(char));
-          log(`Sent: ${char}\n`);
         } catch (err) {
-          log(`\n[Send Error] ${err.message}\n`);
+          statusTxt.textContent = 'Write error';
         }
       }
     }
@@ -214,32 +172,16 @@
     btnOn.addEventListener('click', () => sendCommand('1'));
     btnOff.addEventListener('click', () => sendCommand('0'));
 
-    async function readLoop() {
-      const textDecoder = new TextDecoderStream();
-      port.readable.pipeTo(textDecoder.writable);
-      reader = textDecoder.readable.getReader();
-
-      try {
-        while (keepReading) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          if (value) {
-            log(value);
-          }
-        }
-      } catch (err) {
-        if (keepReading) log(`\n[Read Error] ${err.message}\n`);
-      } finally {
-        reader.releaseLock();
-      }
-    }
-
     btnDisconnect.addEventListener('click', async () => {
       try {
-        keepReading = false;
-        if (reader) await reader.cancel();
-        if (writer) await writer.releaseLock();
-        if (port) await port.close();
+        if (writer) {
+          await writer.releaseLock();
+          writer = null;
+        }
+        if (port) {
+          await port.close();
+          port = null;
+        }
 
         dot.classList.remove('connected');
         statusTxt.textContent = 'Disconnected';
@@ -247,9 +189,8 @@
         btnDisconnect.disabled = true;
         btnOn.disabled = true;
         btnOff.disabled = true;
-        log('\n[Port closed]\n');
       } catch (err) {
-        log(`\n[Disconnect Error] ${err.message}\n`);
+        statusTxt.textContent = 'Disconnect error';
       }
     });
   </script>

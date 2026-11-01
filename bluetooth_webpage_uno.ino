@@ -1,45 +1,48 @@
 #include <SoftwareSerial.h>
 
-// SoftwareSerial Pin Configuration:
-// Uno Pin 10 (RX) <--- HC-05 TXD
-// Uno Pin 9  (TX) ---> Voltage Divider (1k/2k) ---> HC-05 RXD
+// Pin Configuration:
+// Uno Pin 10 (Soft RX) <--- Direct Wire <--- HC-05 TXD
+// Uno Pin 9  (Soft TX) ---> 1k/2k Divider ---> HC-05 RXD
 SoftwareSerial btSerial(10, 9);
 
-// LED moved to Pin 11 (PWM capable)
+// Target LED connected to Pin 11 (PWM-capable)
 const int LED_PIN = 11;
 
 void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
 
-  // Hardware serial for USB debugging
+  // Hardware serial for optional USB monitoring
   Serial.begin(9600);
-  // Default communication baud rate for HC-05
+  
+  // HC-05 communication baud rate
   btSerial.begin(9600);
 
-  Serial.println(F("[SYSTEM] System ready."));
-  Serial.println(F("[CONFIG] HC-05 TX: D9, RX: D10 | LED: D11"));
+  Serial.println(F("[SYSTEM] Arduino ready. LED on Pin 11."));
 }
 
 void loop() {
-  // Listen for commands from the Web interface / Bluetooth link
+  // Listen for wireless commands from the web controller
   if (btSerial.available()) {
     char cmd = btSerial.read();
 
     if (cmd == '1') {
       digitalWrite(LED_PIN, HIGH);
-      btSerial.println(F("STATUS: LED ON (Pin 11)"));
-      Serial.println(F("[BT] Command: 1 -> Pin 11 HIGH"));
+      Serial.println(F("[BT] LED ON"));
     } 
     else if (cmd == '0') {
       digitalWrite(LED_PIN, LOW);
-      btSerial.println(F("STATUS: LED OFF (Pin 11)"));
-      Serial.println(F("[BT] Command: 0 -> Pin 11 LOW"));
+      Serial.println(F("[BT] LED OFF"));
     }
   }
 
-  // Passthrough from PC USB Serial Monitor to Bluetooth
+  // Optional pass-through from USB Serial Monitor
   if (Serial.available()) {
-    btSerial.write(Serial.read());
+    char usbCmd = Serial.read();
+    if (usbCmd == '1') {
+      digitalWrite(LED_PIN, HIGH);
+    } else if (usbCmd == '0') {
+      digitalWrite(LED_PIN, LOW);
+    }
   }
 }
