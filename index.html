@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HC-05 Wireless Switch</title>
+  <title>Arduino HC-05 Controller</title>
   <style>
     * {
       box-sizing: border-box;
@@ -107,7 +107,7 @@
 
   <div class="panel">
     <h2>HC-05 Controller</h2>
-    <p class="subtitle">Wireless Switch for Pin 11</p>
+    <p class="subtitle">Wireless Switch (Uno Pins 2 & 3)</p>
 
     <div class="status-bar">
       <div id="dot" class="indicator"></div>
@@ -117,16 +117,16 @@
     <button id="btnConnect" class="btn-connect">Connect Bluetooth</button>
 
     <div class="btn-grid">
-      <button id="btnOn" class="btn-on" disabled>LED ON</button>
-      <button id="btnOff" class="btn-off" disabled>LED OFF</button>
+      <button id="btnOn" class="btn-on" disabled>LED ON ('1')</button>
+      <button id="btnOff" class="btn-off" disabled>LED OFF ('0')</button>
     </div>
 
     <button id="btnDisconnect" class="btn-disconnect" disabled>Disconnect</button>
   </div>
 
   <script>
-    let port;
-    let writer;
+    let port = null;
+    let writer = null;
 
     const btnConnect = document.getElementById('btnConnect');
     const btnDisconnect = document.getElementById('btnDisconnect');
@@ -142,19 +142,21 @@
 
     btnConnect.addEventListener('click', async () => {
       try {
+        // Request user to select the Outgoing HC-05 COM port
         port = await navigator.serial.requestPort();
         await port.open({ baudRate: 9600 });
 
         writer = port.writable.getWriter();
 
         dot.classList.add('connected');
-        statusTxt.textContent = 'Connected';
+        statusTxt.textContent = 'Connected (9600 baud)';
         btnConnect.disabled = true;
         btnDisconnect.disabled = false;
         btnOn.disabled = false;
         btnOff.disabled = false;
       } catch (err) {
         statusTxt.textContent = 'Connection Failed';
+        console.error('Serial connection error:', err);
       }
     });
 
@@ -164,13 +166,22 @@
           const encoder = new TextEncoder();
           await writer.write(encoder.encode(char));
         } catch (err) {
-          statusTxt.textContent = 'Write error';
+          console.error('Transmission error:', err);
+          statusTxt.textContent = 'Send Error';
         }
       }
     }
 
     btnOn.addEventListener('click', () => sendCommand('1'));
     btnOff.addEventListener('click', () => sendCommand('0'));
+
+    // Optional keyboard control (Press 1 or 0 on keyboard)
+    window.addEventListener('keydown', (e) => {
+      if (!btnOn.disabled) {
+        if (e.key === '1') sendCommand('1');
+        if (e.key === '0') sendCommand('0');
+      }
+    });
 
     btnDisconnect.addEventListener('click', async () => {
       try {
@@ -190,7 +201,8 @@
         btnOn.disabled = true;
         btnOff.disabled = true;
       } catch (err) {
-        statusTxt.textContent = 'Disconnect error';
+        console.error('Disconnect error:', err);
+        statusTxt.textContent = 'Disconnect Error';
       }
     });
   </script>
